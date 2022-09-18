@@ -6,7 +6,7 @@ use obs_wrapper::{
 };
 
 struct BiquadFilter {
-
+    channels: usize
 }
 
 impl Sourceable for BiquadFilter {
@@ -19,8 +19,9 @@ impl Sourceable for BiquadFilter {
     }
 
     fn create(create: &mut CreatableSourceContext<Self>, source: SourceContext) -> Self {
+        let channels = create.with_audio(|audio| audio.output_channels());
         Self {
-
+            channels
         }
     }
 }
@@ -39,7 +40,13 @@ impl UpdateSource for BiquadFilter {
 
 impl FilterAudioSource for BiquadFilter {
     fn filter_audio(&mut self, audio: &mut audio::AudioDataContext) {
-        todo!();
+        let gain = 0.03;
+        for channel in 0..self.channels {
+            let buffer = audio.get_channel_as_mut_slice(channel).unwrap();
+            for output in buffer.iter_mut() {
+                *output = *output * gain;
+            }
+        }
     }
 }
 
