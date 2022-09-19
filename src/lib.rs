@@ -29,6 +29,7 @@ struct BiquadFilter {
     coeffs_low_pass: Coeffs,
     old_values: [OldValues; 2],
     cutoff_freq: f32,
+    q: f32,
 }
 
 impl BiquadFilter {
@@ -73,7 +74,8 @@ impl Sourceable for BiquadFilter {
             create.with_audio(|audio| (audio.output_sample_rate(), audio.output_channels()));
         let settings = &create.settings;
         let cutoff_freq = settings.get(obs_string!("cutoff_freq")).unwrap_or(200.0);
-        let coeffs_low_pass = BiquadFilter::create_low_pass(sample_rate, cutoff_freq, 0.7);
+        let q = settings.get(obs_string!("q")).unwrap_or(0.7);
+        let coeffs_low_pass = BiquadFilter::create_low_pass(sample_rate, cutoff_freq, q);
         Self {
             sample_rate,
             channels,
@@ -90,6 +92,7 @@ impl Sourceable for BiquadFilter {
                 y_n2: 0.0,
             }],
             cutoff_freq,
+            q,
         }
     }
 }
@@ -110,6 +113,13 @@ impl GetPropertiesSource for BiquadFilter {
                 NumberProp::new_float(1.0 as f32)
                     .with_range(1.0..=10000.0)
                     .with_slider(),
+            )
+            .add(
+                obs_string!("q"),
+                obs_string!("Q"),
+                NumberProp::new_float(0.01 as f32)
+                    .with_range(0.0..=1.0)
+                    .with_slider(),
             );
         properties
     }
@@ -117,8 +127,12 @@ impl GetPropertiesSource for BiquadFilter {
 impl UpdateSource for BiquadFilter {
     fn update(&mut self, settings: &mut DataObj, context: &mut GlobalContext) {
         if let Some(cutoff_freq) = settings.get::<f32, _>(obs_string!("cutoff_freq")) {
-            self.coeffs_low_pass = BiquadFilter::create_low_pass(self.sample_rate, cutoff_freq, 0.7);
+            self.coeffs_low_pass = BiquadFilter::create_low_pass(self.sample_rate, cutoff_freq, self.q);
             self.cutoff_freq = cutoff_freq;
+        }
+        if let Some(q) = settings.get::<f32, _>(obs_string!("q")) {
+            self.coeffs_low_pass = BiquadFilter::create_low_pass(self.sample_rate, self.cutoff_freq, q);
+            self.q = q;
         }
     }
 }
