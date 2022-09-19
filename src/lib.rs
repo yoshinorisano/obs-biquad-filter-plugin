@@ -92,7 +92,7 @@ impl BiquadFilter {
         }
     }
 
-    fn calf_coeffs(filter_type: &FilterType, sample_rate: usize, cutoff_freq: f32, q: f32,) -> Coeffs {
+    fn calc_coeffs(filter_type: &FilterType, sample_rate: usize, cutoff_freq: f32, q: f32,) -> Coeffs {
         match filter_type {
             FilterType::LowPass => BiquadFilter::calc_low_pass(sample_rate, cutoff_freq, q),
             FilterType::HighPass => BiquadFilter::calc_high_pass(sample_rate, cutoff_freq, q)
@@ -126,7 +126,7 @@ impl Sourceable for BiquadFilter {
 
         let cutoff_freq = settings.get(obs_string!("cutoff_freq")).unwrap_or(200.0);
         let q = settings.get(obs_string!("q")).unwrap_or(0.7);
-        let coeffs = BiquadFilter::calf_coeffs(&filter_type, sample_rate, cutoff_freq, q);
+        let coeffs = BiquadFilter::calc_coeffs(&filter_type, sample_rate, cutoff_freq, q);
         Self {
             sample_rate,
             channels,
@@ -196,7 +196,7 @@ impl UpdateSource for BiquadFilter {
             self.q = q;
         }
 
-        self.coeffs = BiquadFilter::calf_coeffs(&self.filter_type, self.sample_rate, self.cutoff_freq, self.q);
+        self.coeffs = BiquadFilter::calc_coeffs(&self.filter_type, self.sample_rate, self.cutoff_freq, self.q);
     }
 }
 
