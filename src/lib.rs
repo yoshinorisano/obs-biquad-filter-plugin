@@ -23,20 +23,34 @@ struct OldValues {
     y_n2: f32,
 }
 
+enum FilterType {
+    LowPass,
+    HighPass,
+}
+
+impl FilterType {
+    fn convert(s: String) -> Self {
+        match s.as_str() {
+            "low_pass" => Self::LowPass,
+            "high_pass" => Self::HighPass,
+            _ => panic!("Unexpected filter type")
+        }
+    }
+}
+
 struct BiquadFilter {
     sample_rate: usize,
     channels: usize,
-    coeffs_low_pass: Coeffs,
-    coeffs_high_pass: Coeffs,
+    filter_type: FilterType,
+    coeffs: Coeffs,
     old_values: [OldValues; 2],
     cutoff_freq: f32,
     q: f32,
-    is_low_pass_filter_enabled: bool,
 }
 
 impl BiquadFilter {
     // Low pass filter from Audio EQ Cookbook.
-    fn create_low_pass(sample_rate: usize, freq: f32, q: f32) -> Coeffs {
+    fn calc_low_pass(sample_rate: usize, freq: f32, q: f32) -> Coeffs {
         let w0 = 2.0 * PI * freq as f32 / sample_rate as f32;
 
         let alpha = w0.sin() / (2.0 * q);
@@ -57,7 +71,7 @@ impl BiquadFilter {
     }
 
     // High pass filter from Audio EQ Cookbook.
-    fn create_high_pass(sample_rate: usize, freq: f32, q: f32) -> Coeffs {
+    fn calc_high_pass(sample_rate: usize, freq: f32, q: f32) -> Coeffs {
         let w0 = 2.0 * PI * freq as f32 / sample_rate as f32;
         let cos_w0 = w0.cos();
         let alpha = w0.sin() / (2.0 * q);
@@ -75,6 +89,13 @@ impl BiquadFilter {
             b2: b2 / a0,
             a1: a1 / a0,
             a2: a2 / a0,
+        }
+    }
+
+    fn calf_coeffs(filter_type: &FilterType, sample_rate: usize, cutoff_freq: f32, q: f32,) -> Coeffs {
+        match filter_type {
+            FilterType::LowPass => BiquadFilter::calc_low_pass(sample_rate, cutoff_freq, q),
+            FilterType::HighPass => BiquadFilter::calc_high_pass(sample_rate, cutoff_freq, q)
         }
     }
 
@@ -97,21 +118,20 @@ impl Sourceable for BiquadFilter {
         let (sample_rate, channels) =
             create.with_audio(|audio| (audio.output_sample_rate(), audio.output_channels()));
         let settings = &create.settings;
-        let is_low_pass_filter_enabled = if let Some(filter_type) = settings.get::<std::borrow::Cow<'_, str>, _>(obs_string!("filter_type")) {
-            filter_type == "low_pass"
+        let filter_type = if let Some(filter_type) = settings.get::<std::borrow::Cow<'_, str>, _>(obs_string!("filter_type")) {
+            FilterType::convert(filter_type.to_string())
         } else {
-            true
+            FilterType::LowPass
         };
 
         let cutoff_freq = settings.get(obs_string!("cutoff_freq")).unwrap_or(200.0);
         let q = settings.get(obs_string!("q")).unwrap_or(0.7);
-        let coeffs_low_pass = BiquadFilter::create_low_pass(sample_rate, cutoff_freq, q);
-        let coeffs_high_pass = BiquadFilter::create_high_pass(sample_rate, cutoff_freq, q);
+        let coeffs = BiquadFilter::calf_coeffs(&filter_type, sample_rate, cutoff_freq, q);
         Self {
             sample_rate,
             channels,
-            coeffs_low_pass,
-            coeffs_high_pass,
+            filter_type,
+            coeffs,
             old_values: [OldValues {
                 x_n1: 0.0,
                 x_n2: 0.0,
@@ -125,7 +145,6 @@ impl Sourceable for BiquadFilter {
             }],
             cutoff_freq,
             q,
-            is_low_pass_filter_enabled: is_low_pass_filter_enabled,
         }
     }
 }
@@ -168,35 +187,27 @@ impl GetPropertiesSource for BiquadFilter {
 impl UpdateSource for BiquadFilter {
     fn update(&mut self, settings: &mut DataObj, _context: &mut GlobalContext) {
         if let Some(filter_type) = settings.get::<std::borrow::Cow<'_, str>, _>(obs_string!("filter_type")) {
-            self.is_low_pass_filter_enabled = filter_type == "low_pass";
+            self.filter_type = FilterType::convert(filter_type.to_string())
         }
         if let Some(cutoff_freq) = settings.get::<f32, _>(obs_string!("cutoff_freq")) {
-            self.coeffs_low_pass = BiquadFilter::create_low_pass(self.sample_rate, cutoff_freq, self.q);
-            self.coeffs_high_pass = BiquadFilter::create_high_pass(self.sample_rate, cutoff_freq, self.q);
             self.cutoff_freq = cutoff_freq;
         }
         if let Some(q) = settings.get::<f32, _>(obs_string!("q")) {
-            self.coeffs_low_pass = BiquadFilter::create_low_pass(self.sample_rate, self.cutoff_freq, q);
-            self.coeffs_high_pass = BiquadFilter::create_high_pass(self.sample_rate, self.cutoff_freq, q);
             self.q = q;
         }
+
+        self.coeffs = BiquadFilter::calf_coeffs(&self.filter_type, self.sample_rate, self.cutoff_freq, self.q);
     }
 }
 
 impl FilterAudioSource for BiquadFilter {
     fn filter_audio(&mut self, audio: &mut audio::AudioDataContext) {
-        let coeffs = if self.is_low_pass_filter_enabled {
-            &self.coeffs_low_pass
-        } else {
-            &self.coeffs_high_pass
-        };
-
         for channel in 0..self.channels {
             let buffer = audio.get_channel_as_mut_slice(channel).unwrap();
             for output in buffer.iter_mut() {
                 let sample = *output;
                 let result = BiquadFilter::apply_filter(
-                    coeffs,
+                    &self.coeffs,
                     sample,
                     self.old_values[channel].x_n1,
                     self.old_values[channel].x_n2,
