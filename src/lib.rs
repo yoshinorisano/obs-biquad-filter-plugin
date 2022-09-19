@@ -1,6 +1,7 @@
 use obs_wrapper::{
     prelude::*,
     source::*,
+    properties::*,
     obs_register_module,
     obs_string,
 };
@@ -23,9 +24,11 @@ struct OldValues {
 }
 
 struct BiquadFilter {
+    sample_rate: usize,
     channels: usize,
     coeffs_low_pass: Coeffs,
     old_values: [OldValues; 2],
+    cutoff_freq: f32,
 }
 
 impl BiquadFilter {
@@ -68,8 +71,11 @@ impl Sourceable for BiquadFilter {
     fn create(create: &mut CreatableSourceContext<Self>, source: SourceContext) -> Self {
         let (sample_rate, channels) =
             create.with_audio(|audio| (audio.output_sample_rate(), audio.output_channels()));
-        let coeffs_low_pass = BiquadFilter::create_low_pass(sample_rate, 200.0, 0.7);
+        let settings = &create.settings;
+        let cutoff_freq = settings.get(obs_string!("cutoff_freq")).unwrap_or(200.0);
+        let coeffs_low_pass = BiquadFilter::create_low_pass(sample_rate, cutoff_freq, 0.7);
         Self {
+            sample_rate,
             channels,
             coeffs_low_pass,
             old_values: [OldValues {
@@ -83,6 +89,7 @@ impl Sourceable for BiquadFilter {
                 y_n1: 0.0,
                 y_n2: 0.0,
             }],
+            cutoff_freq,
         }
     }
 }
@@ -93,9 +100,26 @@ impl GetNameSource for BiquadFilter {
     }
 }
 
+impl GetPropertiesSource for BiquadFilter {
+    fn get_properties(&mut self) -> Properties {
+        let mut properties = Properties::new();
+        properties
+            .add(
+                obs_string!("cutoff_freq"),
+                obs_string!("Cutoff frequency"),
+                NumberProp::new_float(1.0 as f32)
+                    .with_range(1.0..=10000.0)
+                    .with_slider(),
+            );
+        properties
+    }
+}
 impl UpdateSource for BiquadFilter {
-    fn update(&mut self, _settings: &mut DataObj, context: &mut GlobalContext) {
-        todo!();
+    fn update(&mut self, settings: &mut DataObj, context: &mut GlobalContext) {
+        if let Some(cutoff_freq) = settings.get::<f32, _>(obs_string!("cutoff_freq")) {
+            self.coeffs_low_pass = BiquadFilter::create_low_pass(self.sample_rate, cutoff_freq, 0.7);
+            self.cutoff_freq = cutoff_freq;
+        }
     }
 }
 
@@ -141,6 +165,7 @@ impl Module for BiquadFilterModule {
         let source = load_context
             .create_source_builder::<BiquadFilter>()
             .enable_get_name()
+            .enable_get_properties()
             .enable_update()
             .enable_filter_audio()
             .build();
