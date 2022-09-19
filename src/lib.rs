@@ -69,7 +69,7 @@ impl Sourceable for BiquadFilter {
         SourceType::FILTER
     }
 
-    fn create(create: &mut CreatableSourceContext<Self>, source: SourceContext) -> Self {
+    fn create(create: &mut CreatableSourceContext<Self>, _source: SourceContext) -> Self {
         let (sample_rate, channels) =
             create.with_audio(|audio| (audio.output_sample_rate(), audio.output_channels()));
         let settings = &create.settings;
@@ -125,7 +125,7 @@ impl GetPropertiesSource for BiquadFilter {
     }
 }
 impl UpdateSource for BiquadFilter {
-    fn update(&mut self, settings: &mut DataObj, context: &mut GlobalContext) {
+    fn update(&mut self, settings: &mut DataObj, _context: &mut GlobalContext) {
         if let Some(cutoff_freq) = settings.get::<f32, _>(obs_string!("cutoff_freq")) {
             self.coeffs_low_pass = BiquadFilter::create_low_pass(self.sample_rate, cutoff_freq, self.q);
             self.cutoff_freq = cutoff_freq;
