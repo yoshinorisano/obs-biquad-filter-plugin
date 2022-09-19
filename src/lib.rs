@@ -118,7 +118,7 @@ impl GetPropertiesSource for BiquadFilter {
                 obs_string!("q"),
                 obs_string!("Q"),
                 NumberProp::new_float(0.01 as f32)
-                    .with_range(0.0..=1.0)
+                    .with_range(0.01..=1.0) // Q must not include zero, which causes divide by zero error.
                     .with_slider(),
             );
         properties
