@@ -43,7 +43,7 @@ struct BiquadFilter {
     channels: usize,
     filter_type: FilterType,
     coeffs: Coeffs,
-    old_values: [OldValues; 2],
+    old_values: Vec<OldValues>, // For each channel
     cutoff_freq: f32,
     q: f32,
 }
@@ -127,22 +127,23 @@ impl Sourceable for BiquadFilter {
         let cutoff_freq = settings.get(obs_string!("cutoff_freq")).unwrap_or(200.0);
         let q = settings.get(obs_string!("q")).unwrap_or(0.7);
         let coeffs = BiquadFilter::calc_coeffs(&filter_type, sample_rate, cutoff_freq, q);
+        let mut old_values = Vec::new();
+        for _ in 0..channels {
+            old_values.push(
+                OldValues {
+                    x_n1: 0.0,
+                    x_n2: 0.0,
+                    y_n1: 0.0,
+                    y_n2: 0.0,
+                }
+            );
+        }
         Self {
             sample_rate,
             channels,
             filter_type,
             coeffs,
-            old_values: [OldValues {
-                x_n1: 0.0,
-                x_n2: 0.0,
-                y_n1: 0.0,
-                y_n2: 0.0,
-            }, OldValues {
-                x_n1: 0.0,
-                x_n2: 0.0,
-                y_n1: 0.0,
-                y_n2: 0.0,
-            }],
+            old_values,
             cutoff_freq,
             q,
         }
