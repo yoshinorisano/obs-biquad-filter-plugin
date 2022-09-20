@@ -23,6 +23,17 @@ struct OldValues {
     y_n2: f32,
 }
 
+impl Default for OldValues {
+    fn default() -> Self {
+        Self {
+            x_n1: 0.0,
+            x_n2: 0.0,
+            y_n1: 0.0,
+            y_n2: 0.0,
+        }
+    }
+}
+
 enum FilterType {
     LowPass,
     HighPass,
@@ -127,17 +138,8 @@ impl Sourceable for BiquadFilter {
         let cutoff_freq = settings.get(obs_string!("cutoff_freq")).unwrap_or(200.0);
         let q = settings.get(obs_string!("q")).unwrap_or(0.7);
         let coeffs = BiquadFilter::calc_coeffs(&filter_type, sample_rate, cutoff_freq, q);
-        let mut old_values = Vec::new();
-        for _ in 0..channels {
-            old_values.push(
-                OldValues {
-                    x_n1: 0.0,
-                    x_n2: 0.0,
-                    y_n1: 0.0,
-                    y_n2: 0.0,
-                }
-            );
-        }
+        let mut old_values = Vec::with_capacity(channels);
+        (0..channels).for_each(|_| old_values.push(OldValues::default()));
         Self {
             sample_rate,
             channels,
