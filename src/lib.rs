@@ -28,8 +28,8 @@ enum FilterType {
     HighPass,
 }
 
-impl FilterType {
-    fn convert(s: String) -> Self {
+impl From<String> for FilterType {
+    fn from(s: String) -> Self {
         match s.as_str() {
             "low_pass" => Self::LowPass,
             "high_pass" => Self::HighPass,
@@ -119,7 +119,7 @@ impl Sourceable for BiquadFilter {
             create.with_audio(|audio| (audio.output_sample_rate(), audio.output_channels()));
         let settings = &create.settings;
         let filter_type = if let Some(filter_type) = settings.get::<std::borrow::Cow<'_, str>, _>(obs_string!("filter_type")) {
-            FilterType::convert(filter_type.to_string())
+            filter_type.to_string().into()
         } else {
             FilterType::LowPass
         };
@@ -187,7 +187,7 @@ impl GetPropertiesSource for BiquadFilter {
 impl UpdateSource for BiquadFilter {
     fn update(&mut self, settings: &mut DataObj, _context: &mut GlobalContext) {
         if let Some(filter_type) = settings.get::<std::borrow::Cow<'_, str>, _>(obs_string!("filter_type")) {
-            self.filter_type = FilterType::convert(filter_type.to_string())
+            self.filter_type = filter_type.to_string().into();
         }
         if let Some(cutoff_freq) = settings.get::<f32, _>(obs_string!("cutoff_freq")) {
             self.cutoff_freq = cutoff_freq;
