@@ -8,6 +8,10 @@ use obs_wrapper::{
 
 use std::f32::consts::PI;
 
+const DEFAULT_FILTER_TYPE: ObsString = obs_string!("low_pass");
+const DEFAULT_CUTOFF_FREQ: f32 = 200.0;
+const DEFAULT_Q: f32 = 0.7;
+
 struct Coeffs {
    b0: f32,
    b1: f32,
@@ -135,8 +139,8 @@ impl Sourceable for BiquadFilter {
             FilterType::LowPass
         };
 
-        let cutoff_freq = settings.get(obs_string!("cutoff_freq")).unwrap_or(200.0);
-        let q = settings.get(obs_string!("q")).unwrap_or(0.7);
+        let cutoff_freq = settings.get(obs_string!("cutoff_freq")).unwrap_or(DEFAULT_CUTOFF_FREQ);
+        let q = settings.get(obs_string!("q")).unwrap_or(DEFAULT_Q);
         let coeffs = BiquadFilter::calc_coeffs(&filter_type, sample_rate, cutoff_freq, q);
         let mut old_values = Vec::with_capacity(channels);
         (0..channels).for_each(|_| old_values.push(OldValues::default()));
@@ -155,6 +159,14 @@ impl Sourceable for BiquadFilter {
 impl GetNameSource for BiquadFilter {
     fn get_name() -> ObsString {
         obs_string!("Biquad filter")
+    }
+}
+
+impl GetDefaultsSource for BiquadFilter {
+    fn get_defaults(settings: &mut DataObj) {
+        settings.set_default(obs_string!("filter_type"), DEFAULT_FILTER_TYPE);
+        settings.set_default(obs_string!("cutoff_freq"), DEFAULT_CUTOFF_FREQ);
+        settings.set_default(obs_string!("q"), DEFAULT_Q);
     }
 }
 
@@ -187,6 +199,7 @@ impl GetPropertiesSource for BiquadFilter {
         properties
     }
 }
+
 impl UpdateSource for BiquadFilter {
     fn update(&mut self, settings: &mut DataObj, _context: &mut GlobalContext) {
         if let Some(filter_type) = settings.get::<std::borrow::Cow<'_, str>, _>(obs_string!("filter_type")) {
@@ -245,6 +258,7 @@ impl Module for BiquadFilterModule {
         let source = load_context
             .create_source_builder::<BiquadFilter>()
             .enable_get_name()
+            .enable_get_defaults()
             .enable_get_properties()
             .enable_update()
             .enable_filter_audio()
