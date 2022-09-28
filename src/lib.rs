@@ -8,9 +8,7 @@ use obs_wrapper::{
 
 use std::f32::consts::PI;
 
-#[allow(dead_code)]
 const DEFAULT_FILTER_TYPE: ObsString = obs_string!("low_pass");
-
 const DEFAULT_CUTOFF_FREQ: f32 = 200.0;
 const DEFAULT_Q: f32 = 0.7;
 
@@ -135,8 +133,8 @@ impl Sourceable for BiquadFilter {
         let (sample_rate, channels) =
             create.with_audio(|audio| (audio.output_sample_rate(), audio.output_channels()));
         let settings = &create.settings;
-        let filter_type = if let Some(filter_type) = settings.get::<std::borrow::Cow<'_, str>>(obs_string!("filter_type")) {
-            filter_type.to_string().into()
+        let filter_type = if let Some(filter_type) = settings.get::<ObsString>(DEFAULT_FILTER_TYPE) {
+            filter_type.as_str().to_string().into()
         } else {
             FilterType::LowPass
         };
@@ -166,8 +164,7 @@ impl GetNameSource for BiquadFilter {
 
 impl GetDefaultsSource for BiquadFilter {
     fn get_defaults(settings: &mut DataObj) {
-        // TODO: Use DEFAULT_FILTER_TYPE.
-        settings.set_default::<std::borrow::Cow<'_, str>>(obs_string!("filter_type"), std::borrow::Cow::Borrowed("low_pass"));
+        settings.set_default::<ObsString>(obs_string!("filter_type"), DEFAULT_FILTER_TYPE);
         settings.set_default::<f32>(obs_string!("cutoff_freq"), DEFAULT_CUTOFF_FREQ);
         settings.set_default::<f32>(obs_string!("q"), DEFAULT_Q);
     }
